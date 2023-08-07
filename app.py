@@ -7,8 +7,9 @@ from model import *
 st.title("Data Editor App")
 
 # Create a text input for the user to enter the table name
-table_name = st.text_input("Enter the data set name:")
-
+table_name = st.text_input("Enter the data set name:", value="new_table")
+row_num = st.text_input("Number of rows:", value=350)
+row_num = int(row_num)
 wave_length = st.selectbox("Select data wave lengths:",options=["SWIR & LWIR", "SWIR", "LWIR"])
 
 # Creating a list of swir and lwir columns
@@ -30,14 +31,18 @@ df = pd.DataFrame(columns=columns)
 new_row = [0] * len(columns)
 
 # Adding the row to the DataFrame using loc
-df.loc[0] = new_row
-df.loc[1] = new_row
-df.loc[2] = new_row
+i=0
+while i < row_num:
+    df.loc[i] = new_row
+    i = i + 1
+
+
 
 # Create a data editor for the user to enter the table data
-table_data = st.data_editor(df, height=200, num_rows="dynamic")
+table_data = st.data_editor(df, height=200, num_rows="dynamic", hide_index=True)
 
 # Load the table data into a pandas dataframe
+df = df.reset_index(drop=True)
 df = pd.DataFrame(table_data)
 
 model = st.selectbox("Select model:",options=["Linear Regression", "Random Forest", "Gradiant Boosted"])
@@ -49,6 +54,7 @@ if st.button("Run Model"):
         r2_df = pd.DataFrame(elements_r2)
         st.write(model + " R^2: " + str(r2_df[1][1]))
         predictions = predictions.drop('Depth_pred', axis=1)
+        st.write(table_name)
         st.write(predictions)
     elif model == "Random Forest":
         st.write("Currently unsupported")
