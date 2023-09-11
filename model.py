@@ -22,98 +22,121 @@
 # import packages
 import os                                                   # Operating system
 import pandas as pd                                         # Dataframes
+import numpy as np                                          # Arrays
 from sklearn.linear_model import LinearRegression           # linear regression
 from sklearn.metrics import r2_score                        # R2 score
 from sklearn.model_selection import train_test_split        # train and test split
 from sklearn.ensemble import RandomForestRegressor          # Random Forest
+from sklearn.ensemble import GradientBoostingRegressor      # Gradient Boosting
 import warnings
 
 # ignore warnings
 warnings.filterwarnings("ignore")
 
 
-def create_XY_df(df):
-# Create X and Y dataframes
-    X = df
-    Y = df
-    for col in X.columns:
-        if col[:4] != 'LWIR' and col[:4] != 'SWIR':
-            X = X.drop(columns=col)
-
-    for col in Y.columns:
-        if col[:4] == 'LWIR' or col[:4] == 'SWIR':
-            Y = Y.drop(columns=col)
-    return X, Y
-
-def liner_reg_training(df):
-    # LINEAR REGRESSION TRAINING
-    X, Y = create_XY_df(df)
-    elements_r2 = []
-    Y_pred = pd.DataFrame()
-    n = 0
-    lin_reg = LinearRegression()
-    for elm in Y.columns:
-        lin_reg.fit(X, Y[elm])
-        elements_r2.append([])
-        elements_r2[n].append(elm)
-        Y_pred[elm] = lin_reg.predict(X)
-        elements_r2[n].append(r2_score(Y[elm], Y_pred[elm]))
-        n = n + 1
-
-    elements_r2 = sorted(elements_r2, key=lambda x: x[1], reverse=True)
-
-    dfExport = pd.DataFrame()
-    for elm in Y.columns:
-        dfExport[elm] = Y[elm]
-        dfExport[elm + '_pred'] = Y_pred[elm]
-
-    for col in X.columns:
-        if col[:4] != 'LWIR' and col[:4] != 'SWIR':
-            X = X.drop(columns=col)
-
-    Y_pred_HSI = pd.DataFrame()
-    for elm in Y.columns:
-        #lin_reg = LinearRegression()
-        lin_reg.fit(X, Y[elm])
-        Y_pred_HSI[elm] = lin_reg.predict(X)
-
-    dfExportPred = pd.DataFrame()
-    for elm in Y.columns:
-        dfExportPred[elm + '_pred'] = Y_pred_HSI[elm]
-
-    return dfExport, elements_r2
-
-
-def my_train_test_split(df):
-    # TRAIN TEST SPLIT
-    X, Y = create_XY_df(df)
-    X = df
-    for col in X.columns:
-        if col[:4] != 'LWIR' and col[:4] != 'SWIR' and col != 'Depth':
-            X = X.drop(columns=col)
-    x_train, x_test, y_train, y_test = train_test_split(X,Y, test_size=0.2)
-    x_train.sort_values(by=['Depth'], inplace=True)
-    y_train.sort_values(by=['Depth'], inplace=True)
-    x_test.sort_values(by=['Depth'], inplace=True)
-    y_test.sort_values(by=['Depth'], inplace=True)
-    x_test = x_test.drop(columns='Depth')
-    x_train = x_train.drop(columns='Depth')
-
-    return x_train, y_train, x_test, y_test
-
-
-def ran_forest_pred(df):
-    # RANDOM FOREST TEST PREDICTION
-    X, Y = create_XY_df(df)
-    Y_pred = pd.DataFrame()
-    x_train, x_test, Y_train, Y_test = train_test_split(X,Y, test_size=0.2)
-    rfr = RandomForestRegressor(bootstrap=True, max_depth=80, max_features='sqrt', min_samples_leaf=1, min_samples_split=10, n_estimators=500).fit(x_train, Y_train)
-    Y_pred = rfr.predict(x_test)
-    elements_r2 = r2_score(Y_test, Y_pred)
-
-    dfExport = pd.DataFrame()
-    dfExport['mineral_pred'] = Y_pred
-    dfExport['mineral'] = Y_test.reset_index().drop(columns='index')
+def linear_regression(X, Y):
+    '''
+    Function that accepts a datatframe of X data and a dataframe of Y data and uses linear regression 
+    to fit 80% of the X and Y data and 20% is used for testing. This  returns a dataframe of the True and 
+    Predicted values for the test data and a list of r squared values for each Y column.
     
-    return dfExport, elements_r2
+    Args:
+        X (dataframe): dataframe of X data where the first column is depth and the rest are used for prediction
+        Y (dataframe): dataframe of Y data where the first column is depth and the rest are used for prediction
+        
+    Returns:
+        test_data (dataframe): dataframe of True and Predicted values for the test data
+        r2_values (list): list of r squared values for each Y column
+    '''
+    # Split the data into training and testing sets
+    X_train, X_test, Y_train, Y_test = train_test_split(X.iloc[:, 1:], Y.iloc[:, 1:], test_size=0.2, random_state=0)
 
+    # Fit a linear regression model to the training data
+    model = LinearRegression()
+    model.fit(X_train, Y_train)
+
+    # Predict the Y values for the test data
+    Y_pred = model.predict(X_test)
+
+    # Create a dataframe of the true and predicted values for the test data
+    test_data = pd.DataFrame(np.concatenate((Y_test.values, Y_pred), axis=1), columns=Y.columns)
+
+    # renmae the columns to true and predicted
+    test_data.columns = ["true", "predicted"]
+
+    # Calculate the r squared values for each Y column
+    r2_values = [model.score(X_test, Y_test[col]) for col in Y.columns[1:]]
+
+    return test_data, r2_values
+
+
+def random_forest_regression(X, Y, bootstrap=True, max_depth=80, max_features='sqrt', min_samples_leaf=1, min_samples_split=10, n_estimators=500):
+    '''
+    Function that accepts a datatframe of X data and a dataframe of Y data and uses random forest regression 
+    to fit 80% of the X and Y data and 20% is used for testing. This  returns a dataframe of the True and 
+    Predicted values for the test data and a list of r squared values for each Y column.
+    
+    Args:
+        X (dataframe): dataframe of X data where the first column is depth and the rest are used for prediction
+        Y (dataframe): dataframe of Y data where the first column is depth and the rest are used for prediction
+        
+    Returns:
+        test_data (dataframe): dataframe of True and Predicted values for the test data
+        r2_values (list): list of r squared values for each Y column
+    '''
+    # Split the data into training and testing sets
+    X_train, X_test, Y_train, Y_test = train_test_split(X.iloc[:, 1:], Y.iloc[:, 1:], test_size=0.2, random_state=0)
+
+    # Fit a random forest regression model to the training data
+    model = RandomForestRegressor(bootstrap=True, max_depth=max_depth, max_features=max_features, min_samples_leaf=min_samples_leaf, min_samples_split=min_samples_split, n_estimators=n_estimators)
+    model.fit(X_train, Y_train)
+
+    # Predict the Y values for the test data
+    Y_pred = model.predict(X_test)
+
+    # Create a dataframe of the true and predicted values for the test data
+    test_data = pd.DataFrame(np.concatenate((Y_test.values, Y_pred.reshape(-1, 1)), axis=1), columns=Y.columns)
+
+    # renmae the columns to true and predicted
+    test_data.columns = ["true", "predicted"]
+
+    # Calculate the r squared values for each Y column
+    r2_values = [model.score(X_test, Y_test[col]) for col in Y.columns[1:]]
+
+    return test_data, r2_values
+
+
+def gradient_boosting_regression(X, Y, learning_rate=0.1, max_depth=80, max_features='sqrt', min_samples_leaf=1, min_samples_split=10, n_estimators=500):
+    '''
+    Function that accepts a datatframe of X data and a dataframe of Y data and uses gradient boosting regression
+    to fit 80% of the X and Y data and 20% is used for testing. This  returns a dataframe of the True and 
+    Predicted values for the test data and a list of r squared values for each Y column.
+    
+    Args:
+        X (dataframe): dataframe of X data where the first column is depth and the rest are used for prediction
+        Y (dataframe): dataframe of Y data where the first column is depth and the rest are used for prediction
+        
+    Returns:
+        test_data (dataframe): dataframe of True and Predicted values for the test data
+        r2_values (list): list of r squared values for each Y column
+    '''
+    # Split the data into training and testing sets
+    X_train, X_test, Y_train, Y_test = train_test_split(X.iloc[:, 1:], Y.iloc[:, 1:], test_size=0.2, random_state=0)
+
+    # Fit a gradient boosting regression model to the training data
+    model = GradientBoostingRegressor(learning_rate=0.1, max_depth=max_depth, max_features=max_features, min_samples_leaf=min_samples_leaf, min_samples_split=min_samples_split, n_estimators=n_estimators)
+    model.fit(X_train, Y_train)
+
+    # Predict the Y values for the test data
+    Y_pred = model.predict(X_test)
+
+    # Create a dataframe of the true and predicted values for the test data
+    test_data = pd.DataFrame(np.concatenate((Y_test.values, Y_pred.reshape(-1, 1)), axis=1), columns=Y.columns)
+
+    # renmae the columns to true and predicted
+    test_data.columns = ["true", "predicted"]
+
+    # Calculate the r squared values for each Y column
+    r2_values = [model.score(X_test, Y_test[col]) for col in Y.columns[1:]]
+
+    return test_data, r2_values
