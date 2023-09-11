@@ -59,9 +59,9 @@ def linear_regression(X, Y):
     Y_pred = model.predict(X_test)
 
     #if the prediction is more than 100 remove it and the corresponding true value
-    Y_test = pd.DataFrame(np.where(Y_pred > 100, np.nan, Y_test))
-    X_test = pd.DataFrame(np.where(Y_pred > 100, np.nan, X_test))
-    Y_pred = pd.DataFrame(np.where(Y_pred > 100, np.nan, Y_pred))
+    Y_test = pd.DataFrame(np.where((Y_pred > 100) | (Y_pred < 0), np.nan, Y_test))
+    X_test = pd.DataFrame(np.where((Y_pred > 100) | (Y_pred < 0), np.nan, X_test))
+    Y_pred = pd.DataFrame(np.where((Y_pred > 100) | (Y_pred < 0), np.nan, Y_pred))
 
     # remove nans
     Y_test = Y_test.dropna()
@@ -77,9 +77,6 @@ def linear_regression(X, Y):
     # rename the columns to true and predicted
     test_data.columns = ["true", "predicted"]
 
-    # remove outliers. for some reason the model is prediction one value as way over 100%
-    #test_data = test_data[(test_data["predicted"] > 0) & (test_data["predicted"] < 100)]
-    
     # Calculate the r squared values for each Y column
     r2_values = [model.score(X_test, Y_test[col]) for col in Y.columns[1:]]
 
